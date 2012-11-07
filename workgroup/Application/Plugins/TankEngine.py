@@ -22,7 +22,6 @@ def XSILoadPlugin( in_reg ):
     in_reg.RegisterCommand("Tank_StartEngine","Tank_StartEngine")
     in_reg.RegisterCommand("Tank_CheckEngine","Tank_CheckEngine")
     in_reg.RegisterCommand("Tank_DestroyEngine","Tank_DestroyEngine")
-    in_reg.RegisterCommand("Tank_StartEngine_DEV","Tank_StartEngine_DEV")
     #RegistrationInsertionPoint - do not remove this line
 
     return true
