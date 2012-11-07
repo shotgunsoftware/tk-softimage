@@ -18,7 +18,6 @@ def XSILoadPlugin( in_reg ):
     in_reg.Major = 1
     in_reg.Minor = 0
 
-    in_reg.RegisterEvent("tk_modPython",constants.siOnStartup)
     in_reg.RegisterEvent("tk_StartTankEngine",constants.siOnStartup)
     #RegistrationInsertionPoint - do not remove this line
 
@@ -27,21 +26,6 @@ def XSILoadPlugin( in_reg ):
 def XSIUnloadPlugin( in_reg ):
     strPluginName = in_reg.Name
     Application.LogMessage(str(strPluginName) + str(" has been unloaded."),constants.siVerbose)
-    return true
-
-
-def tk_modPython_OnEvent( in_ctxt ):
-    Application.LogMessage("Startup_OnEvent called",constants.siVerbose)
-
-    import os
-    from init_env import env
-
-    ROOT=__sipath__
-    ENV_VARS = {'PYTHONPATH': os.path.join(ROOT, 'DLLs')}
-    os.sys.path.insert(0, ENV_VARS['PYTHONPATH'])
-    del os.sys.modules['ssl']
-    del os.sys.modules['_ssl']
-    import ssl
     return true
 
 def tk_StartTankEngine_OnEvent( in_ctxt ):

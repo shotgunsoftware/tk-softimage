@@ -5,8 +5,9 @@
 # Tip: To add a command to this plug-in, right-click in the 
 # script editor and choose Tools > Add Command.
 import win32com.client
-import tank
 from win32com.client import constants
+
+import tank
 
 null = None
 false = 0

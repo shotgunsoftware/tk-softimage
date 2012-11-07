@@ -4,9 +4,12 @@
 # 
 # Tip: To add a command to this plug-in, right-click in the 
 # script editor and choose Tools > Add Command.
+import os
+
 import win32com.client
 from win32com.client import constants
-import tank, os
+
+import tank
 
 null = None
 false = 0
@@ -56,8 +59,6 @@ def Tank_SetProjectFromContext_Execute(  ):
     #   2) Sets current Softimage project to the tank workspace path
     #   3) Calls Tank_SetProjectListFromContext() in order to add the tank project to the project manager
     engine._set_project()
-    
-    
     
 def Tank_SetProjectListFromContext_Init( in_ctxt ):
     oCmd = in_ctxt.Source
