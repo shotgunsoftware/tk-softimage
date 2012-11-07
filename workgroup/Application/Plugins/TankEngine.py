@@ -245,16 +245,3 @@ def Tank_DestroyEngine_Execute():
 
 
 #########################################################################################
-"""
-def Tank_StartEngine_DEV_Init(in_ctxt):
-    oCmd = in_ctxt.Source
-    oCmd.Description = ""
-    oCmd.ReturnValue = true
-    return true
-"""
-def Tank_StartEngine_DEV_Execute():    
-    project_root = r"dev"
-    context_path = project_root+r"\sequences\bgabe\bg0010\animation"
-    Application.Tank_DestroyEngine()
-    Application.Tank_StartEngine(project_root, context_path)
-    Application.Tank_SetProjectFromContext()
