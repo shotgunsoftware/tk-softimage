@@ -85,9 +85,9 @@ class SoftimageEngine(Engine):
                                         "Application", "Plugins")
             
             Application.UnloadPlugin(os.path.join(plugins_path, "qtevents.py"))
-            Application.UnloadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
+            # Application.UnloadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
 
-            Application.LoadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
+            # Application.LoadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
             Application.LoadPlugin(os.path.join(plugins_path, "qtevents.py"))
         else:
             self.log_error("PySide integration not supported on platform: %s" % sys.platform)
@@ -95,8 +95,8 @@ class SoftimageEngine(Engine):
 
         # Very important -- without this call, trying to use PySide may cause Softimage to crash hard.
         # This initializes the QApplication and main event loop.
-        from Qt import getQtSoftimageAnchor
-        getQtSoftimageAnchor()
+        from Qt.anchor import _ensure_qapp_exists
+        _ensure_qapp_exists()
 
     def _create_menu(self):
         tk_softimage = self.import_module("tk_softimage")
@@ -304,5 +304,5 @@ class SoftimageEngine(Engine):
         return Application.Interactive
 
     def _get_parent_widget(self):
-        from Qt import getQtSoftimageAnchor
-        return getQtSoftimageAnchor()
+        from Qt.anchor import get_anchor
+        return get_anchor()
