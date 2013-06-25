@@ -13,7 +13,8 @@ configuration:
     
     template_project: 
         type: template
-        description: Template to use to determine where to set the softimage project location
+        description: Template to use to determine where to set the maya project location
+        allows_empty: True
 
     menu_favourites:
         type: list
@@ -33,3 +34,11 @@ configuration:
 # the Shotgun fields that this engine needs in order to operate correctly
 requires_shotgun_fields:
         
+# More verbose description of this item 
+display_name: "Softimage Engine"
+description: "Tank Integration in Softimage"
+
+# Required minimum versions for this item to run
+requires_shotgun_version:
+requires_core_version: "v0.12.11"
+ 
