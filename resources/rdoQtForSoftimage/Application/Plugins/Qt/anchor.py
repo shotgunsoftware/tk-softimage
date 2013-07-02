@@ -30,6 +30,12 @@ import sys
 import platform
 from PySide import QtGui, QtCore
 
+# Running exec_ on a QApp while in softimage is a big no no...chaos ensues.
+# We'll duck punch in this simple method to replace it which raises an exception.
+def qapp_exec_disallowed(*args, **kwargs):
+    raise AttributeError("Running exec_ on a qapp is disallowed.")
+QtCore.QCoreApplication.exec_ = qapp_exec_disallowed
+QtGui.QApplication.exec_ = qapp_exec_disallowed
 
 ANCHOR_NAME = "QtSoftimageAnchor"
 
