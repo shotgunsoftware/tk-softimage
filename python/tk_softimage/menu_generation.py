@@ -316,10 +316,14 @@ class AppCommand(object):
 
         import uuid
         callback_name = "MenuCallback_" + uuid.uuid4().hex
-        
-        # If the callback triggers an engine restart / menu teardown while the menu is still open, Softimage will crash.
+
+        # If the callback triggers an engine restart / menu teardown while the menu is still open
+        # (or a tank app returns from its execution and the menu has been deleted), Softimage will crash.
         # Possible workaround is to use QTimer.singleShot, which requires PySide and a running Qt event loop.
-        self.global_dict[callback_name] = lambda x: self.callback()
+        # Using singleShot defers execution until events are processed again.  A modal dialog will block events
+        # and if the modal causes a menu teardown the crash ensues.
+        from PySide import QtCore
+        self.global_dict[callback_name] = lambda x: QtCore.QTimer.singleShot(100, self.callback)
 
         menu_item = menu.AddCallbackItem(self.name, callback_name)
         menu_item.Enabled = enabled
