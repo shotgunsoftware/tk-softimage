@@ -67,10 +67,10 @@ class SoftimageEngine(Engine):
         """
         if self.has_ui:
             self._create_menu()
-    
+
     def destroy_engine(self):
         self.log_debug("%s: Destroying..." % self)
-        
+
         # clean up UI:
         if self.has_ui:
             self._destroy_menu()
@@ -83,7 +83,7 @@ class SoftimageEngine(Engine):
             plugins_path = os.path.join(os.path.dirname(__file__),
                                         "resources", "rdoQtForSoftimage",
                                         "Application", "Plugins")
-            
+
             Application.UnloadPlugin(os.path.join(plugins_path, "qtevents.py"))
             # Application.UnloadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
 
@@ -220,54 +220,54 @@ class SoftimageEngine(Engine):
 
     ########################################################################################
     # QT Implementation
-    
+
     def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
         """
-        Shows a non-modal dialog window in a way suitable for this engine. 
+        Shows a non-modal dialog window in a way suitable for this engine.
         The engine will attempt to parent the dialog nicely to the host application.
-        
+
         :param title: The title of the window
         :param bundle: The app, engine or framework object that is associated with this window
         :param widget_class: The class of the UI to be constructed. This must derive from QWidget.
-        
+
         Additional parameters specified will be passed through to the widget_class constructor.
-        
+
         :returns: the created widget_class instance
         """
         if not self.has_ui:
             self.log_error("Sorry, this environment does not support UI display! Cannot show "
                            "the requested window '%s'." % title)
             return
-        
+
         from tank.platform.qt import tankqdialog
         from PySide import QtCore, QtGui
-        
+
         # first construct the widget object
         obj = widget_class(*args, **kwargs)
-        
+
         # now create a dialog to put it inside
         parent = self._get_parent_widget()
         dialog = tankqdialog.TankQDialog(title, bundle, obj, parent)
-        
+
         # keep a reference to all created dialogs to make GC happy
         self.__created_qt_dialogs.append(dialog)
-        
+
         # finally show it
         dialog.show()
-        
+
         # lastly, return the instantiated class
         return obj
-    
+
     def show_modal(self, title, bundle, widget_class, *args, **kwargs):
         """
         Shows a modal dialog window in a way suitable for this engine. The engine will attempt to
-        integrate it as seamlessly as possible into the host application. This call is blocking 
+        integrate it as seamlessly as possible into the host application. This call is blocking
         until the user closes the dialog.
-        
+
         :param title: The title of the window
         :param bundle: The app, engine or framework object that is associated with this window
         :param widget_class: The class of the UI to be constructed. This must derive from QWidget.
-        
+
         Additional parameters specified will be passed through to the widget_class constructor.
 
         :returns: (a standard QT dialog status return code, the created widget_class instance)
@@ -276,23 +276,23 @@ class SoftimageEngine(Engine):
             self.log_error("Sorry, this environment does not support UI display! Cannot show "
                            "the requested window '%s'." % title)
             return
-        
-        from tank.platform.qt import tankqdialog 
+
+        from tank.platform.qt import tankqdialog
         from PySide import QtCore, QtGui
-        
+
         # first construct the widget object
         obj = widget_class(*args, **kwargs)
-        
+
         # now create a dialog to put it inside
         parent = self._get_parent_widget()
         dialog = tankqdialog.TankQDialog(title, bundle, obj, parent)
-        
+
         # keep a reference to all created dialogs to make GC happy
         self.__created_qt_dialogs.append(dialog)
-        
+
         # finally launch it, modal state
         status = dialog.exec_()
-        
+
         # lastly, return the instantiated class
         return (status, obj)
 
