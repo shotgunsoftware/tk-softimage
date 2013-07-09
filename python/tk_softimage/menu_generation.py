@@ -43,6 +43,8 @@ class MenuGenerator(object):
     Menu generation functionality for Softimage
     """
 
+    __MENU_NAMES = []
+
     def __init__(self, engine):
         self._engine = engine
 
@@ -58,6 +60,7 @@ class MenuGenerator(object):
         By passing the globals() dictionary from the Python Script running in Softimage, we can
         register the callbacks for each Menu handler in the local name space for the Self Installing Plugin
         """
+        self.__MENU_NAMES = ["Tank"]
         self._menu_handle = menu_handle
         self.global_dict = global_dict
 
@@ -114,6 +117,12 @@ class MenuGenerator(object):
     ##########################################################################################
     # context menu and UI
 
+    def _add_possible_menu_name(self, name):
+        self.__MENU_NAMES.append(name)
+
+    def get_possible_menu_names(self):
+        return self.__MENU_NAMES
+
     def _add_context_menu(self):
         """
         Adds a context menu which displays the current context
@@ -143,6 +152,7 @@ class MenuGenerator(object):
             ctx_name = "%s, %s %s" % (task_step, ctx.entity["type"], ctx.entity["name"])
 
         # create the sub menu object
+        self._add_possible_menu_name(ctx_name)
         ctx_menu = self._menu_handle.AddSubMenu(ctx_name)
 
         ctx_menu.AddSeparatorItem()
@@ -222,6 +232,9 @@ class MenuGenerator(object):
         for app_name in sorted(commands_by_app.keys()):
 
             if len(commands_by_app[app_name]) > 1:
+
+                self._add_possible_menu_name(app_name)
+
                 # more than one menu entry fort his app
                 # make a sub menu and put all items in the sub menu
 

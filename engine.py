@@ -122,6 +122,18 @@ class SoftimageEngine(Engine):
                                         "Plugins", "TankMenu.py")
         Application.UnloadPlugin(menu_plugin_path)
 
+        # Close any torn off menus...This is not foolproof in that if a torn
+        # off menu has the same name as a Tank command, it may get closed as
+        # well...Torn off Menus do not update and become orphaned on an engine
+        # restart.  It's safer to just close them.
+        possible_menu_names = tank.platform.__si_menu_generator__.get_possible_menu_names()
+        ad = Application.Desktop.ActiveLayout
+        for N in ad.Views:
+            if N.Type == "Menu Window":
+                name = N.GetAttributeValue("metadata")
+                if name in possible_menu_names:
+                    N.State = 1
+
         # Unregister the menu generator
         del tank.platform.__si_menu_generator__
 

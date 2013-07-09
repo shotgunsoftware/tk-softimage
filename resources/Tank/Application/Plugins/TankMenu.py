@@ -21,7 +21,7 @@ def XSILoadPlugin( in_reg ):
     in_reg.Minor = 0
 
     # Make menu dynamic in order to support enable_callback functions
-    in_reg.RegisterMenu(constants.siMenuMainTopLevelID,"Tank",false,true)
+    in_reg.RegisterMenu(constants.siMenuMainTopLevelID, "Tank", false, true)
 
     #RegistrationInsertionPoint - do not remove this line
 
