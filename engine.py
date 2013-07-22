@@ -9,43 +9,19 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 """
-Implements the Softimage Engine in Tank.
+Implements the Softimage Engine for the Shotgun Pipeline Toolkit.
 """
 
-import sys, os
+import sys
+import os
 
-import tank
-from tank.platform import Engine
+import sgtk
+from sgtk.platform import Engine
 
 import win32com
 from win32com.client import Dispatch, constants
-
 Application = Dispatch("XSI.Application").Application
-XSIFactory = Dispatch("XSI.Factory")
-XSIUtils = Dispatch("XSI.Utils")
-XSIToolkit = Dispatch("XSI.UIToolkit")
-
-
-class TankProgressWrapper(object):
-    """
-    A progressbar wrapper.
-    """
-    def __init__(self, title):
-        self.__title = title
-        self._progress_bar = XSIToolkit.ProgressBar
-        self._progress_bar.Caption = self.__title
-        self._progress_bar.Maximum = 100
-
-    def show(self):
-        self._progress_bar.Visible = 1
-
-    def close(self):
-        self._progress_bar.Visible = 0
-
-    def set_progress(self, percent):
-        self._progress_bar.Value = percent
-        print("TANK_PROGRESS Task:%s Progress:%d%%" % (self.__title, percent))
-
+XSIUIToolkit = Dispatch("XSI.UIToolkit")
 
 class SoftimageEngine(Engine):
 
@@ -53,116 +29,132 @@ class SoftimageEngine(Engine):
     # init and destroy
 
     def init_engine(self):
-        self._menu_generator = None
-
+        """
+        Called when the engine is being initialized
+        """
+        
+        # check this is a version of Softimage that we support:
+        if sys.platform != "win32":
+            self.log_error("The tk-softimage engine is currently only supported on Windows!")    
+            return
+        
+        # determine if this is a tested version:
+        is_certified_version = False
+        version_str = Application.version()
+        version_parts = version_str.split(".")
+        if version_parts and version_parts[0].isnumeric():
+            version_major = int(version_parts[0])
+            if (version_major >= 10     # >= Softimage 2012
+                and version_major <= 11 # <= Softimage 2013
+                ): 
+                is_certified_version = True
+                
+        if not is_certified_version:
+            # show a warning:
+            msg = ("The Shotgun Pipeline Toolkit has not yet been fully tested with Softimage %s. "
+                   "You can continue to use the Toolkit but you may experience bugs or "
+                   "instability.  Please report any issues you see to toolkitsupport@shotgunsoftware.com" 
+                   % (version_str))
+            
+            if self.has_ui and "SGTK_SOFTIMAGE_VERSION_WARNING_SHOWN" not in os.environ:
+                # have to call RedrawUI() otherwise Softimage will crash!
+                Application.Desktop.RedrawUI()
+                XSIUIToolkit.MsgBox("Warning - Shotgun Pipeline Toolkit!\n\n%s" % msg)
+                os.environ["SGTK_SOFTIMAGE_VERSION_WARNING_SHOWN"] = "1"
+                
+            self.log_warning(msg)
+            
         # keep handles to all qt dialogs to help GC
         self.__created_qt_dialogs = []
 
-        # create queue
-        self._queue = []
-
         # Set the Softimage project based on config
         self._set_project()
+        
+        # menu:
+        self._menu = None
+        tk_softimage = self.import_module("tk_softimage")
+        self._menu_generator = tk_softimage.MenuGenerator(self)
+        self._shotgun_plugin_path = os.path.join(self.disk_location, "resources", "plugins", "shotgun", "Application", "Plugins")
+        
+        
+    def destroy_engine(self):
+        """
+        Called when engine is destroyed
+        """
+        self.log_debug("%s: Destroying..." % self)
 
-        # add qt paths and dlls
+        # clean up UI:
         if self.has_ui:
-            self._init_pyside()
+            if self._menu:
+                # close any torn-off menus:
+                self._menu.close_torn_off_menus()
+        
+            # Unload the menu plugin
+            Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
+
+            # unload the qtevents plugin
+            Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "qt_events.py"))
+
+    @property
+    def has_ui(self):
+        """
+        Detect and return if Softimage is running in batch mode
+        """
+        return Application.Interactive
 
     def post_app_init(self):
         """
         Called when all apps have initialized
         """
         if self.has_ui:
-            self._create_menu()
+            # ensure we have a QApplication
+            from sgtk.platform.qt import QtGui
+            if not QtGui.QApplication.instance():
+                self.log_debug("Creating main QApplication and setting up style sheet!")
+                QtGui.QApplication.setStyle("cleanlooks")
+                qt_app = QtGui.QApplication([])
+                qt_app.setQuitOnLastWindowClosed(False)
+                
+                # and set up the dark style sheet:
+                css_file = os.path.join(self.disk_location, "resources", "dark.css")
+                f = open(css_file)
+                css = f.read()
+                f.close()
+                qt_app.setStyleSheet(css)
+            
+            # Re-load the menu plugin
+            Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
+            Application.LoadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
+            
+            Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "qt_events.py"))
+            Application.LoadPlugin(os.path.join(self._shotgun_plugin_path, "qt_events.py"))
 
-    def destroy_engine(self):
-        self.log_debug("%s: Destroying..." % self)
-
-        # clean up UI:
-        if self.has_ui:
-            self._destroy_menu()
-
-    def _init_pyside(self):
-        self.log_debug("Initializing PySide integration")
-
-        # (Re-)load Qt integration plugins
-        if sys.platform == "win32":
-            plugins_path = os.path.join(os.path.dirname(__file__),
-                                        "resources", "rdoQtForSoftimage",
-                                        "Application", "Plugins")
-
-            Application.UnloadPlugin(os.path.join(plugins_path, "qtevents.py"))
-            # Application.UnloadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
-
-            # Application.LoadPlugin(os.path.join(plugins_path, "rdoQtForSoftimage.py"))
-            Application.LoadPlugin(os.path.join(plugins_path, "qtevents.py"))
-        else:
-            self.log_error("PySide integration not supported on platform: %s" % sys.platform)
-            return
-
-        # Very important -- without this call, trying to use PySide may cause Softimage to crash hard.
-        # This initializes the QApplication and main event loop.
-        from Qt.anchor import _ensure_qapp_exists
-        _ensure_qapp_exists()
-
-    def _create_menu(self):
-        tk_softimage = self.import_module("tk_softimage")
-        self._menu_generator = tk_softimage.MenuGenerator(self)
-
-        # Register the menu generator somewhere where the menu plugin can find it.
-        #
-        # Can't use current_engine() because that's not updated by the time
-        # post_app_init() is called.
-        tank.platform.__si_menu_generator__ = self._menu_generator
-
-        # Reload the menu plugin
-        menu_plugin_path = os.path.join(os.path.dirname(__file__),
-                                        "resources", "Tank", "Application",
-                                        "Plugins", "TankMenu.py")
-        Application.UnloadPlugin(menu_plugin_path)
-        Application.LoadPlugin(menu_plugin_path)
-
-    def _destroy_menu(self):
-        # Unload the menu plugin
-        menu_plugin_path = os.path.join(os.path.dirname(__file__),
-                                        "resources", "Tank", "Application",
-                                        "Plugins", "TankMenu.py")
-        Application.UnloadPlugin(menu_plugin_path)
-
-        # Close any torn off menus...This is not foolproof in that if a torn
-        # off menu has the same name as a Tank command, it may get closed as
-        # well...Torn off Menus do not update and become orphaned on an engine
-        # restart.  It's safer to just close them.
-        possible_menu_names = tank.platform.__si_menu_generator__.get_possible_menu_names()
-        ad = Application.Desktop.ActiveLayout
-        for N in ad.Views:
-            if N.Type == "Menu Window":
-                name = N.GetAttributeValue("metadata")
-                if name in possible_menu_names:
-                    N.State = 1
-
-        # Unregister the menu generator
-        del tank.platform.__si_menu_generator__
+    def populate_shotgun_menu(self, menu):
+        """
+        Use the menu generator to populate the Shotgun menu
+        """
+        self._menu = menu
+        self._menu_generator.create_menu(self._menu)
 
     ##########################################################################################
     # logging
 
     def log_debug(self, msg):
         if self.get_setting("debug_logging", False):
-            Application.LogMessage(msg, constants.siInfo)
+            Application.LogMessage("Shotgun: %s" % msg, constants.siInfo)
 
     def log_info(self, msg):
-        Application.LogMessage(msg, constants.siInfo)
+        Application.LogMessage("Shotgun: %s" % msg, constants.siInfo)
 
     def log_warning(self, msg):
-        Application.LogMessage(msg, constants.siWarning)
+        Application.LogMessage("Shotgun: %s" % msg, constants.siWarning)
 
     def log_error(self, msg):
         import traceback
         tb = traceback.print_exc()
         if tb:
             msg = tb+"\n"+msg
-        Application.LogMessage(msg, constants.siError)
+        Application.LogMessage("Shotgun: %s" % msg, constants.siError)
 
     ##########################################################################################
     # scene and project management
@@ -175,75 +167,131 @@ class SoftimageEngine(Engine):
         if setting is None:
             return
 
-        tmpl = self.tank.templates.get(setting)
+        tmpl = self.sgtk.templates.get(setting)
         fields = self.context.as_template_fields(tmpl)
         proj_path = tmpl.apply_fields(fields)
         self.log_info("Setting Softimage project to '%s'" % proj_path)
 
         try:
-            # Disable the preference that might prompt user about project creation
-            Application.Preferences.SetPreferenceValue("data_management.projects_new_project", 2)
+            # test to see if the project has already been set to this path:
+            if (Application.ActiveProject.Path 
+                and os.path.normpath(Application.ActiveProject.Path).lower() == os.path.normpath(proj_path).lower()):
+                # project is already set to this path so no need to do anything!
+                return
+            
+            # make sure the project exists:
+            created_proj = Application.CreateProject(proj_path)
+            if not created_proj:
+                raise
 
-            # Set the current project in Softimage
+            # and set it:
             Application.ActiveProject = proj_path
         except:
             self.log_error("Error setting Softimage Project: %s" % proj_path)
 
     ##########################################################################################
-    # queue
+    # pyside / qt
 
-    def add_to_queue(self, name, method, args):
+    def _define_qt_base(self):
         """
-        Terminal implementation of the engine synchronous queue. Adds an item to the queue.
+        check for pyside then pyqt
         """
-        qi = {}
-        qi["name"] = name
-        qi["method"] = method
-        qi["args"] = args
-        self._queue.append(qi)
-
-    def report_progress(self, percent):
-        """
-        Callback function part of the engine queue. This is being passed into the methods
-        that are executing in the queue so that they can report progress back if they like
-        """
-        self._current_queue_item["progress_obj"].set_progress(percent)
-
-    def execute_queue(self):
-        """
-        Executes all items in the queue, one by one, in a controlled fashion
-        """
-        # create progress items for all queue items
-        for x in self._queue:
-            x["progress_obj"] = TankProgressWrapper(x["name"])
-
-        # execute one after the other syncronously
-        while len(self._queue) > 0:
-
-            # take one item off
-            self._current_queue_item = self._queue.pop(0)
-
-            # process it
+        # proxy class used when QT does not exist on the system.
+        # this will raise an exception when any QT code tries to use it
+        class QTProxy(object):                        
+            def __getattr__(self, name):
+                raise sgtk.TankError("Looks like you are trying to run an App that uses a QT "
+                                     "based UI, however the Softimage engine could not find a PyQt "
+                                     "or PySide installation in your python system path. We " 
+                                     "recommend that you install PySide if you want to "
+                                     "run UI applications from within Softimage.")
+        
+        base = {"qt_core": QTProxy(), "qt_gui": QTProxy(), "dialog_base": None}
+        self._has_ui = False
+        
+        if not self._has_ui:
             try:
-                kwargs = self._current_queue_item["args"]
-                # force add a progress_callback arg - this is by convention
-                kwargs["progress_callback"] = self.report_progress
-                # execute
-                self._current_queue_item["method"](**kwargs)
-            except:
-                # error and continue
-                # todo: may want to abort here - or clear the queue? not sure.
-                self.log_error("Error while processing callback %s" % self._current_queue_item)
-            finally:
-                self._current_queue_item["progress"].close()
+                from PySide import QtCore, QtGui
+                import PySide
 
-    ########################################################################################
-    # QT Implementation
+                # tell QT to interpret C strings as utf-8
+                utf8 = QtCore.QTextCodec.codecForName("utf-8")
+                QtCore.QTextCodec.setCodecForCStrings(utf8)
+                
+                base["qt_core"] = QtCore
+                base["qt_gui"] = QtGui
+                base["dialog_base"] = QtGui.QDialog
+                self.log_debug("Successfully initialized PySide %s located in %s." % (PySide.__version__, PySide.__file__))
+                self._has_ui = True
+            except ImportError:
+                pass
+            except Exception, e:
+                self.log_warning("Error setting up pyside. Pyside based UI support will not "
+                                 "be available: %s" % e)
+        
+        if not self._has_ui:
+            try:
+                from PyQt4 import QtCore, QtGui
+                import PyQt4
+                
+                # tell QT to interpret C strings as utf-8
+                utf8 = QtCore.QTextCodec.codecForName("utf-8")
+                QtCore.QTextCodec.setCodecForCStrings(utf8)                
+                
+                # hot patch the library to make it work with pyside code
+                QtCore.Signal = QtCore.pyqtSignal   
+                QtCore.Property = QtCore.pyqtProperty             
+                base["qt_core"] = QtCore
+                base["qt_gui"] = QtGui
+                base["dialog_base"] = QtGui.QDialog
+                self.log_debug("Successfully initialized PyQt %s located in %s." % (QtCore.PYQT_VERSION_STR, PyQt4.__file__))
+                self._has_ui = True
+            except ImportError:
+                pass
+            except Exception, e:
+                self.log_warning("Error setting up PyQt. PyQt based UI support will not "
+                                 "be available: %s" % e)
+                
+        if not self._has_ui:
+            # lets try the version of PySide included with the engine:
+            pyside_root = None            
+            if sys.platform == "win32":
+                if sys.version_info[0] == 2 and sys.version_info[1] == 6:
+                    pyside_root = os.path.join(self.disk_location, "resources","pyside120_py26_qt484_win64")
+                elif sys.version_info[0] == 2 and sys.version_info[1] == 7:
+                    pyside_root = os.path.join(self.disk_location, "resources","pyside120_py27_qt485_win64")
+            else:
+                pass
 
-    def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
+            if pyside_root:
+                self.log_debug("Attempting to import PySide from %s" % pyside_root)
+                if pyside_root not in sys.path:
+                    sys.path.append(pyside_root)
+
+                try:
+                    from PySide import QtCore, QtGui
+                    import PySide
+    
+                    # tell QT to interpret C strings as utf-8
+                    utf8 = QtCore.QTextCodec.codecForName("utf-8")
+                    QtCore.QTextCodec.setCodecForCStrings(utf8)
+                    
+                    base["qt_core"] = QtCore
+                    base["qt_gui"] = QtGui
+                    base["dialog_base"] = QtGui.QDialog
+                    self.log_debug("Successfully initialized PySide %s located in %s." % (PySide.__version__, PySide.__file__))
+                    self._has_ui = True
+                except ImportError:
+                    pass
+                except Exception, e:
+                    self.log_warning("Error setting up PySide. Pyside based UI support will not "
+                                     "be available: %s" % e)
+        return base
+
+    def _create_dialog(self, title, bundle, widget_class, *args, **kwargs):
         """
-        Shows a non-modal dialog window in a way suitable for this engine.
-        The engine will attempt to parent the dialog nicely to the host application.
+        Create the standard Toolkit dialog, with ownership assigned to the main photoshop
+        application window if possible.
 
         :param title: The title of the window
         :param bundle: The app, engine or framework object that is associated with this window
@@ -253,30 +301,70 @@ class SoftimageEngine(Engine):
 
         :returns: the created widget_class instance
         """
-        if not self.has_ui:
-            self.log_error("Sorry, this environment does not support UI display! Cannot show "
-                           "the requested window '%s'." % title)
-            return
-
-        from tank.platform.qt import tankqdialog
-        from PySide import QtCore, QtGui
+        from sgtk.platform.qt import tankqdialog
 
         # first construct the widget object
         obj = widget_class(*args, **kwargs)
 
-        # now create a dialog to put it inside
-        parent = self._get_parent_widget()
-        dialog = tankqdialog.TankQDialog(title, bundle, obj, parent)
-
+        # get the parent for the widget to use:
+        if not hasattr(self, "_qt_parent_widget"):
+            tk_softimage = self.import_module("tk_softimage")
+            self._qt_parent_widget = tk_softimage.get_qt_parent_window()
+        
+        # now construct the dialog:
+        dialog = tankqdialog.TankQDialog(title, bundle, obj, self._qt_parent_widget)
+        
         # keep a reference to all created dialogs to make GC happy
         self.__created_qt_dialogs.append(dialog)
+        
+        # watch for the dialog closing so that we can clean up
+        # (AD) - experimental!
+        # dialog.dialog_closed.connect(self._on_dialog_closed)
 
-        # finally show it
-        dialog.show()
+        return dialog, obj
+    
+    def _on_dialog_closed(self, dlg):
+        """
+        """
+        if dlg in self.__created_qt_dialogs:
+            # don't need to track this dialog any longer
+            self.__created_qt_dialogs.remove(dlg)
+            
+        # detach the widget - there may still be other 
+        # references to it somewhere
+        dlg.detach_widget()
+        
+        from pprint import pprint
+        import gc
+        import sys
+        print "Dialog has %s references:" % sys.getrefcount(dlg)
+        pprint(gc.get_referrers(dlg))
+        
+        # finally, let Qt know this dialog can be deleted
+        dlg.deleteLater()  
+    
+    def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
+        """
+        Shows a non-modal dialog window in a way suitable for this engine.
+        The engine will attempt to parent the dialog nicely to the host application.
 
-        # lastly, return the instantiated class
-        return obj
+        :param title: The title of the window
+        :param bundle: The app, engine or framework object that is associated with this window
+        :param widget_class: The class of the UI to be constructed. This must derive fromzQWidget.
 
+        Additional parameters specified will be passed through to the widget_class constructor.
+
+        :returns: the created widget_class instance
+        """
+        debug_force_modal = False  # debug switch for testing modal dialog
+        if debug_force_modal:
+            status, obj = self.show_modal(title, bundle, widget_class, *args, **kwargs)
+            return obj
+        else:
+            dialog, obj = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
+            dialog.show()
+            return obj    
+    
     def show_modal(self, title, bundle, widget_class, *args, **kwargs):
         """
         Shows a modal dialog window in a way suitable for this engine. The engine will attempt to
@@ -291,37 +379,42 @@ class SoftimageEngine(Engine):
 
         :returns: (a standard QT dialog status return code, the created widget_class instance)
         """
-        if not self.has_ui:
-            self.log_error("Sorry, this environment does not support UI display! Cannot show "
-                           "the requested window '%s'." % title)
-            return
+        from PySide import QtGui
+        
+        dialog, obj = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
 
-        from tank.platform.qt import tankqdialog
-        from PySide import QtCore, QtGui
+        status = QtGui.QDialog.Rejected
+        if sys.platform == "win32":
+            """
+            from tk_photoshop import win_32_api
 
-        # first construct the widget object
-        obj = widget_class(*args, **kwargs)
+            saved_state = []
+            try:
+                # find all photoshop windows and save enabled state:
+                ps_process_id = self._win32_get_photoshop_process_id()
+                if ps_process_id != None:
+                    found_hwnds = win_32_api.find_windows(process_id=ps_process_id, stop_if_found=False)
+                    for hwnd in found_hwnds:
+                        enabled = win_32_api.IsWindowEnabled(hwnd)
+                        saved_state.append((hwnd, enabled))
+                        if enabled:
+                            win_32_api.EnableWindow(hwnd, False)
 
-        # now create a dialog to put it inside
-        parent = self._get_parent_widget()
-        dialog = tankqdialog.TankQDialog(title, bundle, obj, parent)
+                # show dialog:
+                status = dialog.exec_()
+            except Exception, e:
+                self.log_error("Error showing modal dialog: %s", e)
+            finally:
+                # kinda important to ensure we restore other window state:
+                for hwnd, state in saved_state:
+                    if win_32_api.IsWindowEnabled(hwnd) != state:
+                        win_32_api.EnableWindow(hwnd, state)
+            """
+            pass
+        else:
+            pass
 
-        # keep a reference to all created dialogs to make GC happy
-        self.__created_qt_dialogs.append(dialog)
-
-        # finally launch it, modal state
+        # show dialog:
         status = dialog.exec_()
 
-        # lastly, return the instantiated class
-        return (status, obj)
-
-    @property
-    def has_ui(self):
-        """
-        Detect and return if nuke is running in batch mode
-        """
-        return Application.Interactive
-
-    def _get_parent_widget(self):
-        from Qt.anchor import get_anchor
-        return get_anchor()
+        return status, obj

@@ -1,49 +1,27 @@
-"""
+# Copyright (c) 2013 Shotgun Software Inc.
+# 
+# CONFIDENTIAL AND PROPRIETARY
+# 
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+# Source Code License included in this distribution package. See LICENSE.
+# By accessing, using, copying or modifying this work you indicate your 
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+# not expressly granted therein are reserved by Shotgun Software Inc.
 
+"""
 Menu handling for Softimage
-
 """
-
-# IMPORTANT NOTE:
-# Softimage does not allow scripts to build or destroy menu items on the fly. Instead, menus and their functions
-# must be registered in advance via a Self Installing Plugin. This leads to 2 issues for compatability with Tank
-# (when compared to Maya or Nuke):
-
-# 1) When a user clicks on the top menu (in the case, the "Tank" menu), Softimage reads the script code at that moment
-# and builds the submenus. In order to regenerate the menus, it is necessary for the Menu Plugin to be unloaded and
-# then reloaded. For Tank, this is done each time the Tank engine is destroyed or started, such that a custom menu
-# set is built on a per engine basis.
-
-# 2) In Maya or Nuke, when you bind a menu item to a callback, you can input the memory address of whatever the callback
-# function is. This makes it a non-issue to generate and update menu items on the fly via the Tank app template. In Softimage,
-# it's not as direct.
-
-# The Python method Softimage uses for binding a menu callback with the menu item is Menu.AddCallbackItem2(label, callback_name)
-
-# Rather than passing the memory address of the callback into the second argument, Softimage expects the string name of the
-# handler function. It also assumes that function has already been defined in the memory scope of the Self Installing Plugin that
-# is building the menu item, which is hard to do if the menu and its associated callbacks are being generated on the fly by
-# Tank!
-
-# To overcome this limitation, when the MenuGenerator object is called inside the Softimage script that builds the Menus, we
-# pass it the globals() dictionary. For each Menu item callback, we add the name of the function to the globals() index, then bind
-# it to the function memory space using lambda. Then we can call Menu.AddCallbackItem2() and input the string name of the callback.
-# Softimage is tricked into thinking that function exists in the local memory space, and successfully registers the Menu item.
-
 
 import platform
 import sys
 import os
-import unicodedata
 
-import tank
+import sgtk
 
 class MenuGenerator(object):
     """
     Menu generation functionality for Softimage
     """
-
-    __MENU_NAMES = []
 
     def __init__(self, engine):
         self._engine = engine
@@ -51,94 +29,84 @@ class MenuGenerator(object):
     ##########################################################################################
     # public methods
 
-    def create_menu(self, menu_handle, global_dict):
+    def create_menu(self, menu_handle):
         """
-        Render the entire Tank menu.
+        Render the entire Shotgun menu.
         In order to have commands enable/disable themselves based on the enable_callback,
         re-create the menu items every time.
 
         By passing the globals() dictionary from the Python Script running in Softimage, we can
         register the callbacks for each Menu handler in the local name space for the Self Installing Plugin
         """
-        self.__MENU_NAMES = ["Tank"]
         self._menu_handle = menu_handle
-        self.global_dict = global_dict
 
-        # now add the context item on top of the main menu
+        # add the context item on top of the main menu
         if self._engine.context:
             self._context_menu = self._add_context_menu()
 
-        #Add Separator to Tank Menu
-        self._menu_handle.AddSeparatorItem()
-
-        # now enumerate all items and create menu objects for them
+        # enumerate all items and create menu objects for them
         menu_items = []
         for (cmd_name, cmd_details) in self._engine.commands.items():
-             menu_items.append( AppCommand(cmd_name, cmd_details, self.global_dict) )
+             menu_items.append( AppCommand(cmd_name, cmd_details))
 
         # now add favourites
+        menu_has_favourites = False
         for fav in self._engine.get_setting("menu_favourites"):
             app_instance_name = fav["app_instance"]
             menu_name = fav["name"]
             # scan through all menu items
             for cmd in menu_items:
                  if cmd.get_app_instance_name() == app_instance_name and cmd.name == menu_name:
+                     if not menu_has_favourites:
+                         # add separator:
+                         self._menu_handle.AddSeparatorItem() 
+                         menu_has_favourites = True
+                     
                      # found our match!
                      cmd.add_command_to_menu(self._menu_handle)
                      # mark as a favourite item
                      cmd.favourite = True
 
-        #Add Separator to Tank Menu
-        self._menu_handle.AddSeparatorItem()
-
-        # now go through all of the menu items.
+        # now go through all of the menu items and
         # separate them out into various sections
         commands_by_app = {}
-
+        context_menu_has_commands = False
         for cmd in menu_items:
-
             if cmd.get_type() == "context_menu":
-                # context menu!
+                # add this command to the context menu
+                if not context_menu_has_commands:
+                    # add separator:
+                    self._context_menu.AddSeparatorItem()                    
+                    context_menu_has_commands = True
                 cmd.add_command_to_menu(self._context_menu)
-
             else:
-                # normal menu
-                app_name = cmd.get_app_name()
-                if app_name is None:
-                    # un-parented app
-                    app_name = "Other Items"
+                # add to list for the main menu:
+                app_name = cmd.get_app_name() or "Other Items" # un-parented app 
                 if not app_name in commands_by_app:
                     commands_by_app[app_name] = []
                 commands_by_app[app_name].append(cmd)
 
-        # now add all apps to main menu
-        self._add_app_menu(commands_by_app)
+        if commands_by_app:
+            # add separator:
+            self._menu_handle.AddSeparatorItem()
+            # now add all apps to main menu 
+            self._add_app_menu(commands_by_app)
 
     ##########################################################################################
     # context menu and UI
-
-    def _add_possible_menu_name(self, name):
-        self.__MENU_NAMES.append(name)
-
-    def get_possible_menu_names(self):
-        return self.__MENU_NAMES
 
     def _add_context_menu(self):
         """
         Adds a context menu which displays the current context
         """
-
         ctx = self._engine.context
-
         if ctx.entity is None:
             # project-only!
             ctx_name = "%s" % ctx.project["name"]
-
         elif ctx.step is None and ctx.task is None:
             # entity only
             # e.g. [Shot ABC_123]
             ctx_name = "%s %s" % (ctx.entity["type"], ctx.entity["name"])
-
         else:
             # we have either step or task
             task_step = None
@@ -152,25 +120,9 @@ class MenuGenerator(object):
             ctx_name = "%s, %s %s" % (task_step, ctx.entity["type"], ctx.entity["name"])
 
         # create the sub menu object
-        self._add_possible_menu_name(ctx_name)
         ctx_menu = self._menu_handle.AddSubMenu(ctx_name)
-
-        ctx_menu.AddSeparatorItem()
-
-        # To get the Softimage Self Installing Plugin to bind callbacks to the Menu Items:
-        # 1) Get the name of the callback
-        # 2) Point to the callback function in the globals() scope of the Self Installing script
-        # 3) Run Menu.AddCallbackItem2(label, stringHandlerName) where the stringHandlerName refers to the callback from #1
-        callback_name = "tank_"+getattr(self._jump_to_sg, "__name__")
-        self.global_dict[callback_name] = lambda x: self._jump_to_sg(self._menu_handle)
-        ctx_menu.AddCallbackItem("Jump to Shotgun", callback_name)
-
-        callback_name = "tank_"+getattr(self._jump_to_fs, "__name__")
-        self.global_dict[callback_name] = lambda x: self._jump_to_fs()
-        ctx_menu.AddCallbackItem("Jump to File System", callback_name)
-
-        # divider (apps may register entries below this divider)
-        ctx_menu.AddSeparatorItem()
+        ctx_menu.AddCallbackItem("Jump to Shotgun", lambda: self._jump_to_sg(self._menu_handle))
+        ctx_menu.AddCallbackItem("Jump to File System", self._jump_to_fs)
 
         return ctx_menu
 
@@ -189,16 +141,14 @@ class MenuGenerator(object):
         webbrowser.open(url)
 
     def _jump_to_fs(self):
-
         """
         Jump from context to FS
         """
-
         if self._engine.context.entity:
-            paths = self._engine.tank.paths_from_entity(self._engine.context.entity["type"],
+            paths = self._engine.sgtk.paths_from_entity(self._engine.context.entity["type"],
                                                      self._engine.context.entity["id"])
         else:
-            paths = self._engine.tank.paths_from_entity(self._engine.context.project["type"],
+            paths = self._engine.sgtk.paths_from_entity(self._engine.context.project["type"],
                                                      self._engine.context.project["id"])
 
         # launch one window for each location on disk
@@ -224,27 +174,18 @@ class MenuGenerator(object):
 
     ##########################################################################################
     # app menus
-
     def _add_app_menu(self, commands_by_app):
         """
         Add all apps to the main menu, process them one by one.
         """
         for app_name in sorted(commands_by_app.keys()):
-
             if len(commands_by_app[app_name]) > 1:
-
-                self._add_possible_menu_name(app_name)
-
-                # more than one menu entry fort his app
+                # more than one menu entry for this app
                 # make a sub menu and put all items in the sub menu
-
                 sub_menu = self._menu_handle.AddSubMenu(app_name)
-
                 for cmd in commands_by_app[app_name]:
                     cmd.add_command_to_menu(sub_menu)
-
             else:
-
                 # this app only has a single entry.
                 # display that on the menu
                 # todo: Should this be labelled with the name of the app
@@ -259,13 +200,11 @@ class AppCommand(object):
     """
     Wraps around a single command that you get from engine.commands
     """
-
-    def __init__(self, name, command_dict, global_dict):
+    def __init__(self, name, command_dict):
         self.name = name
         self.properties = command_dict["properties"]
         self.callback = command_dict["callback"]
         self.favourite = False
-        self.global_dict = global_dict
 
     def get_app_name(self):
         """
@@ -293,20 +232,6 @@ class AppCommand(object):
 
         return None
 
-    def get_documentation_url_str(self):
-        """
-        Returns the documentation as a str
-        """
-        if "app" in self.properties:
-            app = self.properties["app"]
-            doc_url = app.documentation_url
-            # deal with nuke's inability to handle unicode. #fail
-            if doc_url.__class__ == unicode:
-                doc_url = unicodedata.normalize('NFKD', doc_url).encode('ascii', 'ignore')
-            return doc_url
-
-        return None
-
     def get_type(self):
         """
         returns the command type. Returns node, custom_pane or default
@@ -322,21 +247,11 @@ class AppCommand(object):
         if "enable_callback" in self.properties:
             enabled = self.properties["enable_callback"]()
 
-        # To get the Softimage Self Installing Plugin to bind callbacks to the Menu Items:
-        # 1) Generate a name for the callback
-        # 2) Point to the callback function in the globals() scope of the Self Installing script
-        # 3) Run Menu.AddCallbackItem2(label, stringHandlerName) where the stringHandlerName refers to the callback from #1
-
-        import uuid
-        callback_name = "MenuCallback_" + uuid.uuid4().hex
-
         # If the callback triggers an engine restart / menu teardown while the menu is still open
-        # (or a tank app returns from its execution and the menu has been deleted), Softimage will crash.
+        # (or a Toolkit app returns from its execution and the menu has been deleted), Softimage will crash.
         # Possible workaround is to use QTimer.singleShot, which requires PySide and a running Qt event loop.
         # Using singleShot defers execution until events are processed again.  A modal dialog will block events
         # and if the modal causes a menu teardown the crash ensues.
-        from PySide import QtCore
-        self.global_dict[callback_name] = lambda x: QtCore.QTimer.singleShot(100, self.callback)
-
-        menu_item = menu.AddCallbackItem(self.name, callback_name)
+        from sgtk.platform.qt import QtCore
+        menu_item = menu.AddCallbackItem(self.name, lambda: QtCore.QTimer.singleShot(100, self.callback))
         menu_item.Enabled = enabled

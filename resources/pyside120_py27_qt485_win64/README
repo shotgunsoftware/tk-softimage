@@ -1,0 +1,12 @@
+This version of PySide was compiled from source against the built-in version
+of Python 2.7 for Softimage 2014 on Windows using the following versions:
+
+Qt 4.8.5
+PySide 1.2.0
+Shiboken 1.2.0
+Visual Studio 2010
+
+See http://qt-project.org/ for further details.
+
+If you choose to use an external version of Python then you should ensure
+that a compatible version of PySide is also installed with it. 
