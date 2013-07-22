@@ -57,6 +57,10 @@ def XSILoadPlugin( in_reg ):
     in_reg.RegisterEvent( "Shotgun Qt Events KeyDown", constants.siOnKeyDown )
     in_reg.RegisterEvent( "Shotgun Qt Events KeyUp", constants.siOnKeyUp )
     
+    # also, register a timer event to ensure the Qt event loop is
+    # processed at some stage!
+    in_reg.RegisterTimerEvent("Shotgun Qt Event Loop", 1000, 0)
+    
     return True
 
 def XSIUnloadPlugin( in_reg ):
@@ -67,6 +71,19 @@ def XSIUnloadPlugin( in_reg ):
     return True
 
 #########################################################################################################################
+
+def ShotgunQtEventLoop_OnEvent(in_ctxt):
+    """
+    Process QApplication events in a Softimage
+    timer event just to be on the safe side!
+    """
+    try:
+        import sgtk
+        from sgtk.platform.qt import QtGui
+        QtGui.QApplication.processEvents()
+        QtGui.QApplication.sendPostedEvents()
+    except:
+        pass
 
 def ShotgunQtEventsKeyDown_OnEvent( in_ctxt ):
     """

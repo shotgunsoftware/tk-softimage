@@ -62,4 +62,7 @@ def _create_qt_parent_proxy():
         # not able to parent directly on other os so just set to stay on top:
         proxy_win.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
 
+    # debug to prove that the window is actually parented!
+    # proxy_win.show()
+
     return proxy_win

@@ -385,36 +385,43 @@ class SoftimageEngine(Engine):
 
         status = QtGui.QDialog.Rejected
         if sys.platform == "win32":
-            """
-            from tk_photoshop import win_32_api
 
+            # when we show a modal dialog, the application should be disabled.
+            # However, because the QApplication doesn't have control over the
+            # main Softimage window we have to do this ourselves...
+            import win32api, win32gui
+            tk_softimage = self.import_module("tk_softimage")
+
+            foreground_window = None
             saved_state = []
             try:
-                # find all photoshop windows and save enabled state:
-                ps_process_id = self._win32_get_photoshop_process_id()
-                if ps_process_id != None:
-                    found_hwnds = win_32_api.find_windows(process_id=ps_process_id, stop_if_found=False)
-                    for hwnd in found_hwnds:
-                        enabled = win_32_api.IsWindowEnabled(hwnd)
-                        saved_state.append((hwnd, enabled))
-                        if enabled:
-                            win_32_api.EnableWindow(hwnd, False)
+                # find all windows and save enabled state:
+                foreground_window = win32gui.GetForegroundWindow()
+                #self.log_debug("Disabling main application windows before showing modal dialog")
+                found_hwnds = tk_softimage.find_windows(thread_id = win32api.GetCurrentThreadId(), stop_if_found=False)
+                for hwnd in found_hwnds:
+                    enabled = win32gui.IsWindowEnabled(hwnd)
+                    saved_state.append((hwnd, enabled))
+                    if enabled:
+                        # disable the window:
+                        win32gui.EnableWindow(hwnd, False)
 
                 # show dialog:
                 status = dialog.exec_()
+                
             except Exception, e:
-                self.log_error("Error showing modal dialog: %s", e)
+                self.log_error("Error showing modal dialog: %s" % e)
             finally:
+                #self.log_debug("Restoring state of main application windows")
                 # kinda important to ensure we restore other window state:
                 for hwnd, state in saved_state:
-                    if win_32_api.IsWindowEnabled(hwnd) != state:
-                        win_32_api.EnableWindow(hwnd, state)
-            """
-            pass
+                    if win32gui.IsWindowEnabled(hwnd) != state:
+                        # restore the state:
+                        win32gui.EnableWindow(hwnd, state)
+                if foreground_window:
+                    win32gui.SetForegroundWindow(foreground_window)
         else:
-            pass
-
-        # show dialog:
-        status = dialog.exec_()
+            # show dialog:
+            status = dialog.exec_()
 
         return status, obj
