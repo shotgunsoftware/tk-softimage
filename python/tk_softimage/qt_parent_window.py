@@ -17,15 +17,25 @@ import sys
 import win32com.client
 Application = win32com.client.Dispatch('XSI.Application').Application
 
-_QT_PARENT_WINDOW = None
+_QT_PARENT_TITLE = "Shotgun Pipeline Toolkit Qt Parent Window"
+
 def get_qt_parent_window():
     """
+    Get the parent QtWidget - all sgtk dialogs will be parented
+    to this.  This will persist across engine restarts as it is
+    held onto by the QApplication
     """
-    global _QT_PARENT_WINDOW
-    if not _QT_PARENT_WINDOW:
-        # create it:
-        _QT_PARENT_WINDOW = _create_qt_parent_proxy()
-    return _QT_PARENT_WINDOW
+    global _QT_PARENT_TITLE
+    
+    # first, look to see if a proxy parent already exists:
+    from sgtk.platform.qt import QtGui
+    for widget in QtGui.QApplication.topLevelWidgets():
+        if widget.windowTitle() == _QT_PARENT_TITLE:
+            return widget
+
+    # didn't find so lets create it:
+    return _create_qt_parent_proxy()
+    
 
 def _create_qt_parent_proxy():
     """
@@ -33,9 +43,11 @@ def _create_qt_parent_proxy():
     import sgtk
     sgtk.platform.current_engine().log_debug("Creating Qt parent window proxy")
     
+    global _QT_PARENT_TITLE
+    
     from sgtk.platform.qt import QtGui
     proxy_win = QtGui.QWidget()
-    proxy_win.setWindowTitle("sgtk window parent proxy") 
+    proxy_win.setWindowTitle(_QT_PARENT_TITLE) 
     
     if sys.platform == "win32":
         # on windows, we can parent directly to the application:

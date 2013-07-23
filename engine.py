@@ -107,21 +107,10 @@ class SoftimageEngine(Engine):
         Called when all apps have initialized
         """
         if self.has_ui:
-            # ensure we have a QApplication
-            from sgtk.platform.qt import QtGui
-            if not QtGui.QApplication.instance():
-                self.log_debug("Creating main QApplication and setting up style sheet!")
-                QtGui.QApplication.setStyle("cleanlooks")
-                qt_app = QtGui.QApplication([])
-                qt_app.setQuitOnLastWindowClosed(False)
-                
-                # and set up the dark style sheet:
-                css_file = os.path.join(self.disk_location, "resources", "dark.css")
-                f = open(css_file)
-                css = f.read()
-                f.close()
-                qt_app.setStyleSheet(css)
             
+            # ensure we have a QApplication            
+            self._initialise_qapplication()
+                        
             # Re-load the menu plugin
             Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
             Application.LoadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
@@ -213,10 +202,6 @@ class SoftimageEngine(Engine):
             try:
                 from PySide import QtCore, QtGui
                 import PySide
-
-                # tell QT to interpret C strings as utf-8
-                utf8 = QtCore.QTextCodec.codecForName("utf-8")
-                QtCore.QTextCodec.setCodecForCStrings(utf8)
                 
                 base["qt_core"] = QtCore
                 base["qt_gui"] = QtGui
@@ -233,11 +218,7 @@ class SoftimageEngine(Engine):
             try:
                 from PyQt4 import QtCore, QtGui
                 import PyQt4
-                
-                # tell QT to interpret C strings as utf-8
-                utf8 = QtCore.QTextCodec.codecForName("utf-8")
-                QtCore.QTextCodec.setCodecForCStrings(utf8)                
-                
+               
                 # hot patch the library to make it work with pyside code
                 QtCore.Signal = QtCore.pyqtSignal   
                 QtCore.Property = QtCore.pyqtProperty             
@@ -271,10 +252,6 @@ class SoftimageEngine(Engine):
                 try:
                     from PySide import QtCore, QtGui
                     import PySide
-    
-                    # tell QT to interpret C strings as utf-8
-                    utf8 = QtCore.QTextCodec.codecForName("utf-8")
-                    QtCore.QTextCodec.setCodecForCStrings(utf8)
                     
                     base["qt_core"] = QtCore
                     base["qt_gui"] = QtGui
@@ -286,7 +263,25 @@ class SoftimageEngine(Engine):
                 except Exception, e:
                     self.log_warning("Error setting up PySide. Pyside based UI support will not "
                                      "be available: %s" % e)
+                    
+            if self._has_ui:
+                QtCore = base["qt_core"]
+                QtGui = base["qt_gui"] 
+                
+                # tell QT to interpret C strings as utf-8
+                utf8 = QtCore.QTextCodec.codecForName("utf-8")
+                QtCore.QTextCodec.setCodecForCStrings(utf8)    
+                
+                # override the standard QMessageBox methods
+                self._override_qmessagebox_methods(QtGui)
+                
         return base
+
+    def _get_qt_parent_widget(self):
+        if not hasattr(self, "_qt_parent_widget"):
+            tk_softimage = self.import_module("tk_softimage")
+            self._qt_parent_widget = tk_softimage.get_qt_parent_window()
+        return self._qt_parent_widget
 
     def _create_dialog(self, title, bundle, widget_class, *args, **kwargs):
         """
@@ -306,13 +301,8 @@ class SoftimageEngine(Engine):
         # first construct the widget object
         obj = widget_class(*args, **kwargs)
 
-        # get the parent for the widget to use:
-        if not hasattr(self, "_qt_parent_widget"):
-            tk_softimage = self.import_module("tk_softimage")
-            self._qt_parent_widget = tk_softimage.get_qt_parent_window()
-        
         # now construct the dialog:
-        dialog = tankqdialog.TankQDialog(title, bundle, obj, self._qt_parent_widget)
+        dialog = tankqdialog.TankQDialog(title, bundle, obj, self._get_qt_parent_widget())
         
         # keep a reference to all created dialogs to make GC happy
         self.__created_qt_dialogs.append(dialog)
@@ -381,11 +371,101 @@ class SoftimageEngine(Engine):
         """
         from PySide import QtGui
         
+        # create the dialog:
         dialog, obj = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
 
+        # show the dialog in application modal if possible:
         status = QtGui.QDialog.Rejected
-        if sys.platform == "win32":
+        status = self._run_application_modal(dialog.exec_)
 
+        return status, obj
+    
+    def _initialise_qapplication(self):
+        """
+        Ensure the QApplication is initialized
+        """
+        from sgtk.platform.qt import QtGui
+        if not QtGui.QApplication.instance():
+            
+            self.log_debug("Initialising main QApplication...")
+            QtGui.QApplication.setStyle("cleanlooks")
+            qt_app = QtGui.QApplication([])
+            qt_app.setQuitOnLastWindowClosed(False)
+            
+            # set up the dark style sheet:
+            css_file = os.path.join(self.disk_location, "resources", "dark.css")
+            f = open(css_file)
+            css = f.read()
+            f.close()
+            qt_app.setStyleSheet(css)
+        
+    
+    def _override_qmessagebox_methods(self, QtGui):
+        """
+        Handle common QMessageBox methods to better handle
+        parenting and modality 
+        """
+        
+        information_fn = QtGui.QMessageBox.information
+        critical_fn = QtGui.QMessageBox.critical
+        question_fn = QtGui.QMessageBox.question
+        warning_fn = QtGui.QMessageBox.warning
+        
+        def _fix_parent_in_args(*args, **kwargs):
+            if args:
+                # parent is first arg:
+                if args[0] == None:
+                    qt_parent_widget = self._get_qt_parent_widget()
+                    args = (qt_parent_widget, ) + args[1:]
+            else:
+                if "parent" in kwargs:
+                    if kwargs["parent"] == None:
+                        qt_parent_widget = self._get_qt_parent_widget()
+                        kwargs["parent"] = qt_parent_widget
+                else:
+                    # parent not set at all!
+                    args = (qt_parent_widget, )
+                
+            return args, kwargs
+        
+        @staticmethod
+        def _info_wrapper(*args, **kwargs):
+            args, kwargs = _fix_parent_in_args(*args, **kwargs)
+            func = lambda a=args, k=kwargs: information_fn(*a, **k)
+            return self._run_application_modal(func)
+        
+        @staticmethod
+        def _critical_wrapper(*args, **kwargs):
+            args, kwargs = _fix_parent_in_args(*args, **kwargs)
+            func = lambda a=args, k=kwargs: critical_fn(*a, **k)
+            return self._run_application_modal(func)
+        
+        @staticmethod
+        def _question_wrapper(*args, **kwargs):
+            args, kwargs = _fix_parent_in_args(*args, **kwargs)
+            func = lambda a=args, k=kwargs: question_fn(*a, **k)
+            return self._run_application_modal(func)
+        
+        @staticmethod
+        def _warning_wrapper(*args, **kwargs):
+            args, kwargs = _fix_parent_in_args(*args, **kwargs)
+            func = lambda a=args, k=kwargs: warning_fn(*a, **k)
+            return self._run_application_modal(func)
+
+        QtGui.QMessageBox.information = _info_wrapper
+        QtGui.QMessageBox.critical = _critical_wrapper
+        QtGui.QMessageBox.question = _question_wrapper
+        QtGui.QMessageBox.warning = _warning_wrapper
+    
+    
+    def _run_application_modal(self, func):
+        """
+        Run the specified function application modal if
+        possible.
+        """
+        ret = None
+        if sys.platform == "win32":
+            
             # when we show a modal dialog, the application should be disabled.
             # However, because the QApplication doesn't have control over the
             # main Softimage window we have to do this ourselves...
@@ -406,8 +486,8 @@ class SoftimageEngine(Engine):
                         # disable the window:
                         win32gui.EnableWindow(hwnd, False)
 
-                # show dialog:
-                status = dialog.exec_()
+                # run function
+                ret = func()
                 
             except Exception, e:
                 self.log_error("Error showing modal dialog: %s" % e)
@@ -422,6 +502,13 @@ class SoftimageEngine(Engine):
                     win32gui.SetForegroundWindow(foreground_window)
         else:
             # show dialog:
-            status = dialog.exec_()
-
-        return status, obj
+            ret = func()
+            
+        return ret        
+        
+        
+        
+        
+        
+    
+    
