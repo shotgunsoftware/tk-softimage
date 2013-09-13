@@ -64,9 +64,6 @@ class SoftimageEngine(Engine):
                 
             self.log_warning(msg)
             
-        # keep handles to all qt dialogs to help GC
-        self.__created_qt_dialogs = []
-
         # Set the Softimage project based on config
         self._set_project()
         
@@ -277,61 +274,15 @@ class SoftimageEngine(Engine):
                 
         return base
 
-    def _get_qt_parent_widget(self):
+    def _get_dialog_parent(self):
+        """
+        Get the QWidget parent for all dialogs created through
+        show_dialog & show_modal.
+        """
         if not hasattr(self, "_qt_parent_widget"):
             tk_softimage = self.import_module("tk_softimage")
             self._qt_parent_widget = tk_softimage.get_qt_parent_window()
         return self._qt_parent_widget
-
-    def _create_dialog(self, title, bundle, widget_class, *args, **kwargs):
-        """
-        Create the standard Toolkit dialog, with ownership assigned to the main photoshop
-        application window if possible.
-
-        :param title: The title of the window
-        :param bundle: The app, engine or framework object that is associated with this window
-        :param widget_class: The class of the UI to be constructed. This must derive from QWidget.
-
-        Additional parameters specified will be passed through to the widget_class constructor.
-
-        :returns: the created widget_class instance
-        """
-        from sgtk.platform.qt import tankqdialog
-
-        # first construct the widget object
-        obj = widget_class(*args, **kwargs)
-
-        # now construct the dialog:
-        dialog = tankqdialog.TankQDialog(title, bundle, obj, self._get_qt_parent_widget())
-        
-        # keep a reference to all created dialogs to make GC happy
-        self.__created_qt_dialogs.append(dialog)
-        
-        # watch for the dialog closing so that we can clean up
-        # (AD) - experimental!
-        # dialog.dialog_closed.connect(self._on_dialog_closed)
-
-        return dialog, obj
-    
-    def _on_dialog_closed(self, dlg):
-        """
-        """
-        if dlg in self.__created_qt_dialogs:
-            # don't need to track this dialog any longer
-            self.__created_qt_dialogs.remove(dlg)
-            
-        # detach the widget - there may still be other 
-        # references to it somewhere
-        dlg.detach_widget()
-        
-        from pprint import pprint
-        import gc
-        import sys
-        print "Dialog has %s references:" % sys.getrefcount(dlg)
-        pprint(gc.get_referrers(dlg))
-        
-        # finally, let Qt know this dialog can be deleted
-        dlg.deleteLater()  
     
     def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
         """
@@ -348,12 +299,10 @@ class SoftimageEngine(Engine):
         """
         debug_force_modal = False  # debug switch for testing modal dialog
         if debug_force_modal:
-            status, obj = self.show_modal(title, bundle, widget_class, *args, **kwargs)
-            return obj
+            status, widget = self.show_modal(title, bundle, widget_class, *args, **kwargs)
+            return widget
         else:
-            dialog, obj = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
-            dialog.show()
-            return obj    
+            return Engine.show_dialog(self, title, bundle, widget_class, *args, **kwargs)
     
     def show_modal(self, title, bundle, widget_class, *args, **kwargs):
         """
@@ -370,15 +319,18 @@ class SoftimageEngine(Engine):
         :returns: (a standard QT dialog status return code, the created widget_class instance)
         """
         from PySide import QtGui
-        
-        # create the dialog:
-        dialog, obj = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
 
+        # create the dialog:
+        res = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
+        if not res:
+            return
+        dialog, widget = res        
+        
         # show the dialog in application modal if possible:
         status = QtGui.QDialog.Rejected
         status = self._run_application_modal(dialog.exec_)
 
-        return status, obj
+        return status, widget
     
     def _initialise_qapplication(self):
         """
@@ -415,12 +367,12 @@ class SoftimageEngine(Engine):
             if args:
                 # parent is first arg:
                 if args[0] == None:
-                    qt_parent_widget = self._get_qt_parent_widget()
+                    qt_parent_widget = self._get_dialog_parent()
                     args = (qt_parent_widget, ) + args[1:]
             else:
                 if "parent" in kwargs:
                     if kwargs["parent"] == None:
-                        qt_parent_widget = self._get_qt_parent_widget()
+                        qt_parent_widget = self._get_dialog_parent()
                         kwargs["parent"] = qt_parent_widget
                 else:
                     # parent not set at all!
