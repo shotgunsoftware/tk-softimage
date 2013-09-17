@@ -284,26 +284,6 @@ class SoftimageEngine(Engine):
             self._qt_parent_widget = tk_softimage.get_qt_parent_window()
         return self._qt_parent_widget
     
-    def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
-        """
-        Shows a non-modal dialog window in a way suitable for this engine.
-        The engine will attempt to parent the dialog nicely to the host application.
-
-        :param title: The title of the window
-        :param bundle: The app, engine or framework object that is associated with this window
-        :param widget_class: The class of the UI to be constructed. This must derive fromzQWidget.
-
-        Additional parameters specified will be passed through to the widget_class constructor.
-
-        :returns: the created widget_class instance
-        """
-        debug_force_modal = False  # debug switch for testing modal dialog
-        if debug_force_modal:
-            status, widget = self.show_modal(title, bundle, widget_class, *args, **kwargs)
-            return widget
-        else:
-            return Engine.show_dialog(self, title, bundle, widget_class, *args, **kwargs)
-    
     def show_modal(self, title, bundle, widget_class, *args, **kwargs):
         """
         Shows a modal dialog window in a way suitable for this engine. The engine will attempt to
@@ -318,13 +298,15 @@ class SoftimageEngine(Engine):
 
         :returns: (a standard QT dialog status return code, the created widget_class instance)
         """
+        if not self.has_ui:
+            self.log_error("Sorry, this environment does not support UI display! Cannot show "
+                           "the requested window '%s'." % title)
+            return    
+        
         from PySide import QtGui
 
         # create the dialog:
-        res = self._create_dialog(title, bundle, widget_class, *args, **kwargs)
-        if not res:
-            return
-        dialog, widget = res        
+        dialog, widget = self._create_dialog_with_widget(title, bundle, widget_class, *args, **kwargs)
         
         # show the dialog in application modal if possible:
         status = QtGui.QDialog.Rejected
