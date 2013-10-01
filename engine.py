@@ -33,27 +33,30 @@ class SoftimageEngine(Engine):
         Called when the engine is being initialized
         """
         
-        # check this is a version of Softimage that we support:
-        if sys.platform != "win32":
-            self.log_error("The tk-softimage engine is currently only supported on Windows!")    
-            return
-        
         # determine if this is a tested version:
         is_certified_version = False
         version_str = Application.version()
         version_parts = version_str.split(".")
         if version_parts and version_parts[0].isnumeric():
             version_major = int(version_parts[0])
-            if (version_major >= 10     # >= Softimage 2012
-                and version_major <= 11 # <= Softimage 2013
-                ): 
-                is_certified_version = True
+            if sys.platform == "win32":
+                if (version_major >= 10     # >= Softimage 2012
+                    and version_major <= 11 # <= Softimage 2013
+                    ): 
+                    is_certified_version = True
+            elif sys.platform == "linux2": 
+                pass
+                # This is still super experimental so lets not
+                # say it's certified just yet!
+                #if version_major == 11:     # == Softimage 2013
+                #    is_certified_version = True
                 
         if not is_certified_version:
             # show a warning:
             msg = ("The Shotgun Pipeline Toolkit has not yet been fully tested with Softimage %s. "
                    "You can continue to use the Toolkit but you may experience bugs or "
-                   "instability.  Please report any issues you see to toolkitsupport@shotgunsoftware.com" 
+                   "instability.\n\n"
+                   "Please report any issues you see to toolkitsupport@shotgunsoftware.com" 
                    % (version_str))
             
             if self.has_ui and "SGTK_SOFTIMAGE_VERSION_WARNING_SHOWN" not in os.environ:
@@ -108,11 +111,11 @@ class SoftimageEngine(Engine):
             # ensure we have a QApplication            
             self._initialise_qapplication()
                         
-            # Re-load the menu plugin
+            # Re-load plug-ins
             Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
-            Application.LoadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
-            
             Application.UnloadPlugin(os.path.join(self._shotgun_plugin_path, "qt_events.py"))
+            
+            Application.LoadPlugin(os.path.join(self._shotgun_plugin_path, "menu.py"))
             Application.LoadPlugin(os.path.join(self._shotgun_plugin_path, "qt_events.py"))
 
     def populate_shotgun_menu(self, menu):
@@ -235,9 +238,12 @@ class SoftimageEngine(Engine):
             pyside_root = None            
             if sys.platform == "win32":
                 if sys.version_info[0] == 2 and sys.version_info[1] == 6:
-                    pyside_root = os.path.join(self.disk_location, "resources","pyside120_py26_qt484_win64")
+                    pyside_root = os.path.join(self.disk_location, "resources", "pyside120_py26_qt484_win64")
                 elif sys.version_info[0] == 2 and sys.version_info[1] == 7:
-                    pyside_root = os.path.join(self.disk_location, "resources","pyside120_py27_qt485_win64")
+                    pyside_root = os.path.join(self.disk_location, "resources", "pyside120_py27_qt485_win64")
+                    
+            elif sys.platform == "linux2":
+                pyside_root = os.path.join(self.disk_location, "resources", "pyside121_py25_qt485_linux", "python")
             else:
                 pass
 

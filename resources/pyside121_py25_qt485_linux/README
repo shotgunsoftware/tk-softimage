@@ -1,0 +1,12 @@
+Build instructions for Pyside, QT and Python - on Linux
+------------------------------------------------------------------
+
+This version of pyside was built with python 2.5.2 (64 bit) and QT 4.8.5 specifically for 
+Softimage 2013.  Everything is built with gcc 4.1.1
+
+These instructions assume a clean centos 6 linux build.
+
+
+(Under construction - full instructions to come!)
+
+

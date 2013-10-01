@@ -11,4 +11,6 @@
 from .menu_generation import MenuGenerator
 from .qt_parent_window import get_qt_parent_window
 
-from .win32 import find_windows
+import sys
+if sys.platform == "win32":
+    from .win32 import find_windows

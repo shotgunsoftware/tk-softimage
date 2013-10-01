@@ -59,7 +59,7 @@ def XSILoadPlugin( in_reg ):
     
     # also, register a timer event to ensure the Qt event loop is
     # processed at some stage!
-    in_reg.RegisterTimerEvent("Shotgun Qt Event Loop", 1000, 0)
+    in_reg.RegisterTimerEvent("Shotgun Qt Event Loop", 20, 0)
     
     return True
 
@@ -71,7 +71,6 @@ def XSIUnloadPlugin( in_reg ):
     return True
 
 #########################################################################################################################
-
 def ShotgunQtEventLoop_OnEvent(in_ctxt):
     """
     Process QApplication events in a Softimage
@@ -81,7 +80,9 @@ def ShotgunQtEventLoop_OnEvent(in_ctxt):
         import sgtk
         from sgtk.platform.qt import QtGui
         QtGui.QApplication.processEvents()
-        QtGui.QApplication.sendPostedEvents()
+        QtGui.QApplication.sendPostedEvents(None, 0)
+        #QtGui.QApplication.flush()
+        #Application.Desktop.RedrawUI()
     except:
         pass
 

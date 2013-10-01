@@ -45,7 +45,7 @@ def _create_qt_parent_proxy():
     
     global _QT_PARENT_TITLE
     
-    from sgtk.platform.qt import QtGui
+    from sgtk.platform.qt import QtGui, QtCore
     proxy_win = QtGui.QWidget()
     proxy_win.setWindowTitle(_QT_PARENT_TITLE) 
     
