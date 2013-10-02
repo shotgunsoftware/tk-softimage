@@ -14,6 +14,12 @@ def _setupQtDirectories():
     # configuration variables, if there is no default qt.conf in
     # executable folder
     prefix = pysideDir.replace('\\', '/')
+    
+    # Note, for this Sgtk install, the qt libraries 
+    # are all located in the lib directory:
+    prefix = os.path.join(prefix, "..", "..", "lib")
+    prefix = os.path.normpath(prefix)
+    
     _utils.register_qt_conf(prefix=prefix,
                             binaries=prefix,
                             plugins=prefix+"/plugins",
