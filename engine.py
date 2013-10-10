@@ -333,11 +333,7 @@ class SoftimageEngine(Engine):
             qt_app.setQuitOnLastWindowClosed(False)
             
             # set up the dark style sheet:
-            css_file = os.path.join(self.disk_location, "resources", "dark.css")
-            f = open(css_file)
-            css = f.read()
-            f.close()
-            qt_app.setStyleSheet(css)
+            qt_app.setStyleSheet(self._get_standard_qt_stylesheet())
         
     
     def _override_qmessagebox_methods(self, QtGui):
