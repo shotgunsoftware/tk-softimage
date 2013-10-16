@@ -33,6 +33,7 @@ Additionally it uses the qt module from sgtk.platform.qt rather than
 directly importing PySide/PyQT
 """
 
+import sys
 import win32com
 from win32com.client import constants
 
@@ -59,7 +60,17 @@ def XSILoadPlugin( in_reg ):
     
     # also, register a timer event to ensure the Qt event loop is
     # processed at some stage!
-    in_reg.RegisterTimerEvent("Shotgun Qt Event Loop", 20, 0)
+    #
+    # The effect of not processing events frequently is more noticeable on
+    # Linux whilst processing too frequently can result in odd behaviour on
+    # Windows, hence the different frequencies!
+    timer_frequency = 1000
+    if sys.platform == "win32":
+        timer_frequency = 1000    
+    elif sys.platform == "linux2":
+        timer_frequency = 20
+    
+    in_reg.RegisterTimerEvent("Shotgun Qt Event Loop", timer_frequency, 0)
     
     return True
 
