@@ -241,7 +241,7 @@ class SoftimageEngine(Engine):
                 if sys.version_info[0] == 2 and sys.version_info[1] == 6:
                     pyside_root = os.path.join(self.disk_location, "resources", "pyside120_py26_qt484_win64")
                 elif sys.version_info[0] == 2 and sys.version_info[1] == 7:
-                    pyside_root = os.path.join(self.disk_location, "resources", "pyside120_py27_qt485_win64")
+                    pyside_root = os.path.join(self.disk_location, "resources", "pyside112_py27_qt484_win64")
                     
             elif sys.platform == "linux2":
                 pyside_root = os.path.join(self.disk_location, "resources", "pyside121_py25_qt485_linux", "python")
