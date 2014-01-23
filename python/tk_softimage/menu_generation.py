@@ -100,24 +100,7 @@ class MenuGenerator(object):
         Adds a context menu which displays the current context
         """
         ctx = self._engine.context
-        if ctx.entity is None:
-            # project-only!
-            ctx_name = "%s" % ctx.project["name"]
-        elif ctx.step is None and ctx.task is None:
-            # entity only
-            # e.g. [Shot ABC_123]
-            ctx_name = "%s %s" % (ctx.entity["type"], ctx.entity["name"])
-        else:
-            # we have either step or task
-            task_step = None
-
-            if ctx.step:
-                task_step = ctx.step.get("name")
-            if ctx.task:
-                task_step = ctx.task.get("name")
-
-            # e.g. [Lighting, Shot ABC_123]
-            ctx_name = "%s, %s %s" % (task_step, ctx.entity["type"], ctx.entity["name"])
+        ctx_name = str(ctx)
 
         # create the sub menu object
         ctx_menu = self._menu_handle.AddSubMenu(ctx_name)
