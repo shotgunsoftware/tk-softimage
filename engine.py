@@ -74,7 +74,7 @@ class SoftimageEngine(Engine):
         self._menu = None
         tk_softimage = self.import_module("tk_softimage")
         self._menu_generator = tk_softimage.MenuGenerator(self)
-        self._shotgun_plugin_path = os.path.join(self.disk_location, "resources", "plugins", "shotgun", "Application", "Plugins")
+        self._shotgun_plugin_path = os.path.join(self.disk_location, "plugins", "shotgun", "Application", "Plugins")
         
         
     def destroy_engine(self):
