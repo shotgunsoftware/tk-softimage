@@ -183,103 +183,18 @@ class SoftimageEngine(Engine):
 
     def _define_qt_base(self):
         """
-        check for pyside then pyqt
+        Because Softimage does not include PySide/Qt distributions but does use it's own
+        special version of Python, we have to distribute full versions for the engine to
+        function.
+        
+        However, because these are quite large, they have now been split out into a separate
+        framework (tk-framework-softimageqt).
+        
+        This function now calls out to that framework (via the tk_softimage module) to
+        define the qt base.
         """
-        # proxy class used when QT does not exist on the system.
-        # this will raise an exception when any QT code tries to use it
-        class QTProxy(object):                        
-            def __getattr__(self, name):
-                raise sgtk.TankError("Looks like you are trying to run an App that uses a QT "
-                                     "based UI, however the Softimage engine could not find a PyQt "
-                                     "or PySide installation in your python system path. We " 
-                                     "recommend that you install PySide if you want to "
-                                     "run UI applications from within Softimage.")
-        
-        base = {"qt_core": QTProxy(), "qt_gui": QTProxy(), "dialog_base": None}
-        self._has_ui = False
-        
-        if not self._has_ui:
-            try:
-                from PySide import QtCore, QtGui
-                import PySide
-                
-                base["qt_core"] = QtCore
-                base["qt_gui"] = QtGui
-                base["dialog_base"] = QtGui.QDialog
-                self.log_debug("Successfully initialized PySide %s located in %s." % (PySide.__version__, PySide.__file__))
-                self._has_ui = True
-            except ImportError:
-                pass
-            except Exception, e:
-                self.log_warning("Error setting up pyside. Pyside based UI support will not "
-                                 "be available: %s" % e)
-        
-        if not self._has_ui:
-            try:
-                from PyQt4 import QtCore, QtGui
-                import PyQt4
-               
-                # hot patch the library to make it work with pyside code
-                QtCore.Signal = QtCore.pyqtSignal
-                QtCore.Slot = QtCore.pyqtSlot
-                QtCore.Property = QtCore.pyqtProperty             
-                base["qt_core"] = QtCore
-                base["qt_gui"] = QtGui
-                base["dialog_base"] = QtGui.QDialog
-                self.log_debug("Successfully initialized PyQt %s located in %s." % (QtCore.PYQT_VERSION_STR, PyQt4.__file__))
-                self._has_ui = True
-            except ImportError:
-                pass
-            except Exception, e:
-                self.log_warning("Error setting up PyQt. PyQt based UI support will not "
-                                 "be available: %s" % e)
-                
-        if not self._has_ui:
-            # lets try the version of PySide included with the engine:
-            pyside_root = None            
-            if sys.platform == "win32":
-                if sys.version_info[0] == 2 and sys.version_info[1] == 6:
-                    pyside_root = os.path.join(self.disk_location, "resources", "pyside120_py26_qt484_win64")
-                elif sys.version_info[0] == 2 and sys.version_info[1] == 7:
-                    pyside_root = os.path.join(self.disk_location, "resources", "pyside112_py27_qt484_win64")
-                    
-            elif sys.platform == "linux2":
-                pyside_root = os.path.join(self.disk_location, "resources", "pyside121_py25_qt485_linux", "python")
-            else:
-                pass
-
-            if pyside_root:
-                self.log_debug("Attempting to import PySide from %s" % pyside_root)
-                if pyside_root not in sys.path:
-                    sys.path.append(pyside_root)
-
-                try:
-                    from PySide import QtCore, QtGui
-                    import PySide
-                    
-                    base["qt_core"] = QtCore
-                    base["qt_gui"] = QtGui
-                    base["dialog_base"] = QtGui.QDialog
-                    self.log_debug("Successfully initialized PySide %s located in %s." % (PySide.__version__, PySide.__file__))
-                    self._has_ui = True
-                except ImportError:
-                    pass
-                except Exception, e:
-                    self.log_warning("Error setting up PySide. Pyside based UI support will not "
-                                     "be available: %s" % e)
-                    
-            if self._has_ui:
-                QtCore = base["qt_core"]
-                QtGui = base["qt_gui"] 
-                
-                # tell QT to interpret C strings as utf-8
-                utf8 = QtCore.QTextCodec.codecForName("utf-8")
-                QtCore.QTextCodec.setCodecForCStrings(utf8)    
-                
-                # override the standard QMessageBox methods
-                self._override_qmessagebox_methods(QtGui)
-                
-        return base
+        tk_softimage = self.import_module("tk_softimage")
+        return tk_softimage.define_qt_base()
 
     def _get_dialog_parent(self):
         """
