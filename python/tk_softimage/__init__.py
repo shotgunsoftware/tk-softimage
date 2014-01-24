@@ -14,3 +14,12 @@ from .qt_parent_window import get_qt_parent_window
 import sys
 if sys.platform == "win32":
     from .win32 import find_windows
+
+def define_qt_base():
+    """
+    Call out to tk-framework-softimageqt to define the qt base to use
+    for the Softimage engine
+    """
+    import sgtk
+    qt_fw = sgtk.platform.get_framework("tk-framework-softimageqt")
+    return qt_fw.define_qt_base()
