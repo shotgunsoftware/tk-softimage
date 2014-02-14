@@ -46,10 +46,9 @@ class SoftimageEngine(Engine):
                     is_certified_version = True
             elif sys.platform == "linux2": 
                 pass
-                # This is still super experimental so lets not
-                # say it's certified just yet!
-                #if version_major == 11:     # == Softimage 2013
-                #    is_certified_version = True
+                # This is still marginally experimental
+                if version_major == 11:     # == Softimage 2013
+                    is_certified_version = True
                 
         if not is_certified_version:
             # show a warning:
