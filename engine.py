@@ -243,12 +243,12 @@ class SoftimageEngine(Engine):
         if not QtGui.QApplication.instance():
             
             self.log_debug("Initialising main QApplication...")
-            QtGui.QApplication.setStyle("cleanlooks")
             qt_app = QtGui.QApplication([])
+            qt_app.setWindowIcon(QtGui.QIcon(self.icon_256))
             qt_app.setQuitOnLastWindowClosed(False)
             
-            # set up the dark style sheet:
-            qt_app.setStyleSheet(self._get_standard_qt_stylesheet())
+            # set up the dark style
+            self._initialize_dark_look_and_feel()
         
     
     def _override_qmessagebox_methods(self, QtGui):
