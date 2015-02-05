@@ -103,9 +103,7 @@ class MenuGenerator(object):
         ctx_name = str(ctx)
 
         # create the sub menu object
-        # the label expects a unicode object so we cast it to support when the context may 
-        # contain info with non-ascii character
-        ctx_menu = self._menu_handle.AddSubMenu(ctx_name.decode("utf-8"))
+        ctx_menu = self._menu_handle.AddSubMenu(ctx_name)
         ctx_menu.AddCallbackItem("Jump to Shotgun", lambda: self._jump_to_sg(self._menu_handle))
         ctx_menu.AddCallbackItem("Jump to File System", self._jump_to_fs)
 
