@@ -45,7 +45,6 @@ class SoftimageEngine(Engine):
                     ): 
                     is_certified_version = True
             elif sys.platform == "linux2": 
-                pass
                 # This is still marginally experimental
                 if version_major == 11:     # == Softimage 2013
                     is_certified_version = True
@@ -101,12 +100,24 @@ class SoftimageEngine(Engine):
         """
         return Application.Interactive
 
+    def pre_app_init(self):
+        """
+        Runs after the engine is set up but before any apps have been initialized.
+        """        
+        # unicode characters returned by the shotgun api need to be converted
+        # to display correctly in all of the app windows
+        from tank.platform.qt import QtCore
+        # tell QT to interpret C strings as utf-8
+        utf8 = QtCore.QTextCodec.codecForName("utf-8")
+        QtCore.QTextCodec.setCodecForCStrings(utf8)
+        self.log_debug("set utf-8 codec for widget text")
+
     def post_app_init(self):
         """
         Called when all apps have initialized
         """
         if self.has_ui:
-            
+
             # ensure we have a QApplication            
             self._initialise_qapplication()
                         
@@ -161,9 +172,12 @@ class SoftimageEngine(Engine):
         self.log_info("Setting Softimage project to '%s'" % proj_path)
 
         try:
-            # test to see if the project has already been set to this path:
+            # test to see if the project has already been set to this path
+            # Application.ActiveProject.Path returns a unicode object. If the path contains
+            # non-ascii characters, the comparison will fail since the str and unicode objects
+            # cannot be compared, so we convert the unicode object to a utf-8 string.
             if (Application.ActiveProject.Path 
-                and os.path.normpath(Application.ActiveProject.Path).lower() == os.path.normpath(proj_path).lower()):
+                and os.path.normpath(Application.ActiveProject.Path).lower().encode("utf-8") == os.path.normpath(proj_path).lower()):
                 # project is already set to this path so no need to do anything!
                 return
             
