@@ -123,7 +123,9 @@ class ShotgunMenu(object):
         """
         Add the named sub-menu.
         """
-        sub_menu = ShotgunMenu(self._si_AddSubMenu(name), self._name_generator)
+        # the menu name should be a unicode object so we cast it to support when, for example, 
+        # the context contains info with non-ascii characters
+        sub_menu = ShotgunMenu(self._si_AddSubMenu(name.decode("utf-8")), self._name_generator)
         self._sub_menus.append(sub_menu)
         return sub_menu
 
