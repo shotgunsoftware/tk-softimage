@@ -54,7 +54,7 @@ class SoftimageEngine(Engine):
             msg = ("The Shotgun Pipeline Toolkit has not yet been fully tested with Softimage %s. "
                    "You can continue to use the Toolkit but you may experience bugs or "
                    "instability.\n\n"
-                   "Please report any issues you see to toolkitsupport@shotgunsoftware.com" 
+                   "Please report any issues you see to support@shotgunsoftware.com" 
                    % (version_str))
             
             if self.has_ui and "SGTK_SOFTIMAGE_VERSION_WARNING_SHOWN" not in os.environ:
