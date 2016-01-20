@@ -41,7 +41,7 @@ configuration:
 requires_shotgun_fields:
         
 # More verbose description of this item 
-display_name: "Softimage Engine"
+display_name: "Shotgun Engine for Softimage"
 description: "Shotgun Pipeline Toolkit Integration in Softimage"
 
 # Required minimum versions for this item to run
