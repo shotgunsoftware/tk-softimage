@@ -64,6 +64,8 @@ class SoftimageEngine(Engine):
                 os.environ["SGTK_SOFTIMAGE_VERSION_WARNING_SHOWN"] = "1"
                 
             self.log_warning(msg)
+
+        self.log_user_attribute_metric("Softimage version", version_str)
             
         # Set the Softimage project based on config
         self._set_project()
