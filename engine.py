@@ -65,7 +65,11 @@ class SoftimageEngine(Engine):
                 
             self.log_warning(msg)
 
-        self.log_user_attribute_metric("Softimage version", version_str)
+        try:
+            self.log_user_attribute_metric("Softimage version", version_str)
+        except:
+            # ignore all errors. ex: using a core that doesn't support metrics
+            pass
             
         # Set the Softimage project based on config
         self._set_project()

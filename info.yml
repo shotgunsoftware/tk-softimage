@@ -48,8 +48,6 @@ description: "Shotgun Pipeline Toolkit Integration in Softimage"
 requires_shotgun_version:
 requires_core_version: "v0.14.56"
 
-# XXX will require core version with metrics logging
- 
 # the frameworks required to run this app
 frameworks:
     - {"name": "tk-framework-softimageqt", "version": "v1.0.1"}
