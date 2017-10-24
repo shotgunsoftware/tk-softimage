@@ -25,6 +25,29 @@ XSIUIToolkit = Dispatch("XSI.UIToolkit")
 
 class SoftimageEngine(Engine):
 
+    @property
+    def host_info(self):
+        """
+        :returns: A dictionary with information about the application hosting this engine.
+
+        Note that the version field is initially set to unknown, it gets updated at a later
+        stage on execution of the `init_engine` method.
+
+            {
+                "name": "Softimage",
+                "version": "13.2.163.0",
+            }
+
+        The returned dictionary is of following form until it gets updated by the
+        `init_engine`
+
+            {
+                "name": "Softimage",
+                "version: "unknown"
+            }
+        """
+        return self._host_info
+
     ##########################################################################################
     # init and destroy
 
@@ -36,6 +59,12 @@ class SoftimageEngine(Engine):
         # determine if this is a tested version:
         is_certified_version = False
         version_str = Application.version()
+
+        # Create a _host_info variable that we can update so later usage of
+        # the `host_info` property can benefit having the updated information.
+        self._host_info = {"name": "Softimage", "version": version_str}
+        self.log_metric("Launched Software")
+
         version_parts = version_str.split(".")
         if version_parts and version_parts[0].isnumeric():
             version_major = int(version_parts[0])
@@ -65,12 +94,6 @@ class SoftimageEngine(Engine):
                 
             self.log_warning(msg)
 
-        try:
-            self.log_user_attribute_metric("Softimage version", version_str)
-        except:
-            # ignore all errors. ex: using a core that doesn't support metrics
-            pass
-            
         # Set the Softimage project based on config
         self._set_project()
         
