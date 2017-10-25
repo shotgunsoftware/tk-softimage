@@ -60,10 +60,18 @@ class SoftimageEngine(Engine):
         is_certified_version = False
         version_str = Application.version()
 
-        # Create a _host_info variable that we can update so later usage of
-        # the `host_info` property can benefit having the updated information.
-        self._host_info = {"name": "Softimage", "version": version_str}
-        self.log_metric("Launched Software")
+        try:
+            # Create a _host_info variable that we can update so later usage of
+            # the `host_info` property can benefit having the updated information.
+            self._host_info = {"name": "Softimage", "version": version_str}
+
+            # Actually log the metric
+            self.log_metric("Launched Software")
+
+        except Exception as e:
+            self.log_error("Unexpected error logging a metric")
+            # DO NOT raise exception. It's reasonnable to log an error about it but
+            # we don't want to break normal execution for metric related logging.
 
         version_parts = version_str.split(".")
         if version_parts and version_parts[0].isnumeric():
