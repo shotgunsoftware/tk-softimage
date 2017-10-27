@@ -68,10 +68,16 @@ class SoftimageEngine(Engine):
             # Actually log the metric
             self.log_metric("Launched Software")
 
-        except Exception as e:
-            self.log_error("Unexpected error logging a metric")
-            # DO NOT raise exception. It's reasonnable to log an error about it but
-            # we don't want to break normal execution for metric related logging.
+        except Exception:
+            e_message = "Unexpected error logging a metric."
+            # Log to application
+            self.log_error(e_message)
+
+            # Log to Shotgun own tk-softimage.log file
+            self.logger.exception(e_message)
+
+            # DO NOT raise exception. It's reasonable to log an error, but we
+            # don't want to break normal execution for metric related logging.
 
         version_parts = version_str.split(".")
         if version_parts and version_parts[0].isnumeric():
