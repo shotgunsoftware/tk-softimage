@@ -35,7 +35,7 @@ class SoftimageEngine(Engine):
 
             {
                 "name": "Softimage",
-                "version": "13.2.163.0",
+                "version": "2015",
             }
 
         The returned dictionary is of following form until it gets updated by the
@@ -61,9 +61,46 @@ class SoftimageEngine(Engine):
         version_str = Application.version()
 
         try:
+            # Attempt getting the year version from product name version info block
+            try:
+                import win32api
+                import re
+
+                # Parses the Windows FileInfo block to extract the ProductName field.
+                application_full_path = Application.FullName
+
+                # Need to query the version info block based on file's locale
+                language, codepage = win32api.GetFileVersionInfo(application_full_path, "\\VarFileInfo\\Translation")[0]
+                string_file_info = "\\StringFileInfo\\%04X%04X\\%s" % (language, codepage, "ProductName")
+                product_name = win32api.GetFileVersionInfo(application_full_path, string_file_info)
+                metric_logged_version = re.sub("[^0-9]*", "", product_name)
+                self.logger.debug("Extracted release version '%s' from '%s' application's version info block." % (metric_logged_version, product_name))
+
+            except:
+                # On ANY exception try relying on the Softimage API which
+                # needs to be maintained manually
+                try:
+                    version_parts = version_str.split(".")
+                    if version_parts and version_parts[0].isnumeric():
+                        version_major = int(version_parts[0])
+                        # At least since 2011 the major version seems to be incremented each year
+                        # 13 = 2015, 11 = 2013, others are unverified
+                        if version_major == 11:
+                            metric_logged_version = "2013"
+                        elif version_major == 13:
+                            metric_logged_version = "2015"
+                        else:
+                            raise Exception("Unrecognized Major Version")
+
+                        self.logger.debug("Extracted release version '%s' based 'version_major' (%d) version." % (metric_logged_version, version_major))
+                except:
+                    # Worst case fallback, just use whatever was returned by the Soft Image API
+                    self.logger.debug("Extracted release version '%s' from %s's own API." % (version_str, Application.Name))
+                    metric_logged_version = version_str
+
             # Create a _host_info variable that we can update so later usage of
             # the `host_info` property can benefit having the updated information.
-            self._host_info = {"name": "Softimage", "version": version_str}
+            self._host_info = {"name": Application.Name, "version": metric_logged_version}
 
             # Actually log the metric
             self.log_metric("Launched Software")
