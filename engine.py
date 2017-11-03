@@ -83,10 +83,14 @@ class SoftimageEngine(Engine):
                     version_parts = version_str.split(".")
                     if version_parts and version_parts[0].isnumeric():
                         version_major = int(version_parts[0])
-                        # At least since 2011 the major version seems to be incremented each year
-                        # 13 = 2015, 11 = 2013, others are unverified
-                        if version_major == 11:
+                        # At least since 2012 the major version seems to be incremented each year.
+                        # Other versions are unverified
+                        if version_major == 10:
+                            metric_logged_version = "2012"
+                        elif version_major == 11:
                             metric_logged_version = "2013"
+                        elif version_major == 12:
+                            metric_logged_version = "2014" # unverified
                         elif version_major == 13:
                             metric_logged_version = "2015"
                         else:
